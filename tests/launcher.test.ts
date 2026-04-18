@@ -2,11 +2,11 @@ import { describe, test, expect } from 'bun:test'
 import { buildResumeArgv, RESUME_COMMANDS } from '../src/launcher.ts'
 import type { Session } from '../src/parsers/types.ts'
 
-function makeSession(tool: Session['tool'], id: string): Session {
+function makeSession(tool: Session['tool'], id: string, cwd = '/tmp'): Session {
   return {
     id,
     tool,
-    cwd: '/tmp',
+    cwd,
     updatedAt: Date.now(),
     filePath: '/tmp/fake',
     fileMtime: Date.now(),

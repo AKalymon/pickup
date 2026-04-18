@@ -41,7 +41,7 @@ export function openDb(dbPath?: string): Database {
 
 export function getMtimeMap(db: Database): Map<string, number> {
   const rows = db.query<{ file_path: string; file_mtime: number }, []>(
-    'SELECT file_path, file_mtime FROM sessions',
+    "SELECT file_path, file_mtime FROM sessions WHERE tool != '__tracked__'",
   ).all()
   return new Map(rows.map(r => [r.file_path, r.file_mtime]))
 }
@@ -84,18 +84,35 @@ export function querySessions(db: Database, opts: QueryOptions = {}): Session[] 
 
   const rows = tool
     ? db.query<DbRow, [string, number]>(
-        'SELECT * FROM sessions WHERE tool = ? ORDER BY updated_at DESC LIMIT ?',
+        "SELECT * FROM sessions WHERE tool = ? AND tool != '__tracked__' ORDER BY updated_at DESC LIMIT ?",
       ).all(tool, limit)
     : db.query<DbRow, [number]>(
-        'SELECT * FROM sessions ORDER BY updated_at DESC LIMIT ?',
+        "SELECT * FROM sessions WHERE tool != '__tracked__' ORDER BY updated_at DESC LIMIT ?",
       ).all(limit)
 
   return rows.map(rowToSession)
 }
 
+/** Get the stored mtime for a tracked file path (e.g. history.jsonl). Returns 0 if unknown. */
+export function getTrackedMtime(db: Database, filePath: string): number {
+  const row = db.query<{ file_mtime: number }, [string]>(
+    "SELECT file_mtime FROM sessions WHERE id = ?",
+  ).get(filePath)
+  return row?.file_mtime ?? 0
+}
+
+/** Persist the mtime for a tracked file path using a sentinel row. */
+export function setTrackedMtime(db: Database, filePath: string, mtime: number): void {
+  db.prepare(`
+    INSERT INTO sessions (id, tool, cwd, updated_at, last_user, last_agent, file_path, file_mtime)
+    VALUES (?, '__tracked__', '', 0, NULL, NULL, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET file_mtime = excluded.file_mtime
+  `).run(filePath, filePath, mtime)
+}
+
 export function removeStale(db: Database, knownPaths: Set<string>): void {
   const existing = db.query<{ file_path: string }, []>(
-    'SELECT file_path FROM sessions',
+    "SELECT file_path FROM sessions WHERE tool != '__tracked__'",
   ).all()
 
   const toDelete = existing.filter(r => !knownPaths.has(r.file_path)).map(r => r.file_path)

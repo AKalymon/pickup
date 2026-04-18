@@ -34,34 +34,38 @@ function truncateToWidth(s: string, max: number): string {
 
 interface SessionRowProps {
   session: Session
-  isSelected: boolean
+  isFocused: boolean
+  isChecked: boolean
   maxWidth: number
 }
 
-function SessionRow({ session, isSelected, maxWidth }: SessionRowProps) {
+function SessionRow({ session, isFocused, isChecked, maxWidth }: SessionRowProps) {
   const color = TOOL_COLOR[session.tool] ?? 'white'
   const path = truncateToWidth(shortenPath(session.cwd), maxWidth - 20)
   const time = relativeTime(session.updatedAt)
 
+  const checkbox = isChecked ? '[✓]' : '[ ]'
+
   return (
     <Box flexDirection="column" marginBottom={1}>
-      {/* Line 1: tool + time */}
+      {/* Line 1: cursor + checkbox + tool + time */}
       <Box>
-        <Text color={isSelected ? 'green' : undefined} bold={isSelected}>
-          {isSelected ? '▶ ' : '  '}
+        <Text color={isFocused ? 'green' : undefined} bold={isFocused}>
+          {isFocused ? '▶ ' : '  '}
         </Text>
-        <Text color={color} bold={isSelected}>{session.tool}</Text>
+        <Text color={isChecked ? 'green' : 'gray'}>{checkbox} </Text>
+        <Text color={color} bold={isFocused}>{session.tool}</Text>
         <Text dimColor>  {time}</Text>
       </Box>
       {/* Line 2: directory */}
       <Box>
-        <Text>{'   '}</Text>
+        <Text>{'       '}</Text>
         <Text dimColor>dir: </Text>
-        <Text bold={isSelected}>{path}</Text>
+        <Text bold={isFocused}>{path}</Text>
       </Box>
       {/* Line 3: last user message */}
       <Box>
-        <Text>{'   '}</Text>
+        <Text>{'       '}</Text>
         <Text dimColor>you: </Text>
         {session.lastUser
           ? <Text>{session.lastUser}</Text>
@@ -69,7 +73,7 @@ function SessionRow({ session, isSelected, maxWidth }: SessionRowProps) {
       </Box>
       {/* Line 4: last agent message */}
       <Box>
-        <Text>{'   '}</Text>
+        <Text>{'       '}</Text>
         <Text dimColor>ai:  </Text>
         {session.lastAgent
           ? <Text dimColor>{session.lastAgent}</Text>
@@ -81,23 +85,21 @@ function SessionRow({ session, isSelected, maxWidth }: SessionRowProps) {
 
 interface PickerProps {
   sessions: Session[]
-  onSelect: (session: Session) => void
+  onConfirm: (sessions: Session[]) => void
   onExit: () => void
 }
 
-function Picker({ sessions, onSelect, onExit }: PickerProps) {
-  const [selectedIndex, setSelectedIndex] = useState(0)
+function Picker({ sessions, onConfirm, onExit }: PickerProps) {
+  const [focusIndex, setFocusIndex]   = useState(0)
+  const [checked, setChecked]         = useState<Set<string>>(new Set())
   const [scrollOffset, setScrollOffset] = useState(0)
   const { stdout } = useStdout()
   const { exit } = useApp()
 
   const termHeight = stdout?.rows ?? 24
   const termWidth  = stdout?.columns ?? 80
-
-  // Available lines: total minus title (1) + title margin (1) + footer margin (1) + footer (1)
   const availableLines = termHeight - 4
   const visibleCount = Math.max(1, Math.floor(availableLines / ROW_LINES))
-
   const maxWidth = termWidth
 
   useInput((input, key) => {
@@ -108,24 +110,40 @@ function Picker({ sessions, onSelect, onExit }: PickerProps) {
     }
 
     if (key.upArrow || input === 'k') {
-      const next = Math.max(0, selectedIndex - 1)
-      setSelectedIndex(next)
+      const next = Math.max(0, focusIndex - 1)
+      setFocusIndex(next)
       if (next < scrollOffset) setScrollOffset(next)
     }
 
     if (key.downArrow || input === 'j') {
-      const next = Math.min(sessions.length - 1, selectedIndex + 1)
-      setSelectedIndex(next)
+      const next = Math.min(sessions.length - 1, focusIndex + 1)
+      setFocusIndex(next)
       if (next >= scrollOffset + visibleCount) {
         setScrollOffset(next - visibleCount + 1)
       }
     }
 
+    if (input === ' ') {
+      const session = sessions[focusIndex]
+      if (!session) return
+      setChecked(prev => {
+        const next = new Set(prev)
+        if (next.has(session.id)) next.delete(session.id)
+        else next.add(session.id)
+        return next
+      })
+    }
+
     if (key.return) {
-      const session = sessions[selectedIndex]
-      if (session) {
+      // If nothing checked, resume the focused session
+      // If sessions are checked, resume all checked ones
+      if (checked.size === 0) {
+        const session = sessions[focusIndex]
+        if (session) { exit(); onConfirm([session]) }
+      } else {
+        const toResume = sessions.filter(s => checked.has(s.id))
         exit()
-        onSelect(session)
+        onConfirm(toResume)
       }
     }
   })
@@ -133,6 +151,11 @@ function Picker({ sessions, onSelect, onExit }: PickerProps) {
   const visibleSessions = sessions.slice(scrollOffset, scrollOffset + visibleCount)
   const aboveCount = scrollOffset
   const belowCount = Math.max(0, sessions.length - scrollOffset - visibleCount)
+  const checkedCount = checked.size
+
+  const footerHint = checkedCount > 0
+    ? `${checkedCount} selected — enter to resume all in new windows`
+    : 'enter resume  space select  ↑↓/jk navigate  q quit'
 
   return (
     <Box flexDirection="column">
@@ -142,29 +165,22 @@ function Picker({ sessions, onSelect, onExit }: PickerProps) {
         <Text dimColor> — select a session to resume</Text>
       </Box>
 
-      {/* Scroll indicator: above */}
-      {aboveCount > 0 && (
-        <Text dimColor>  ↑ {aboveCount} more above</Text>
-      )}
+      {aboveCount > 0 && <Text dimColor>  ↑ {aboveCount} more above</Text>}
 
-      {/* Session list */}
       {visibleSessions.map((session, i) => (
         <SessionRow
           key={session.id}
           session={session}
-          isSelected={scrollOffset + i === selectedIndex}
+          isFocused={scrollOffset + i === focusIndex}
+          isChecked={checked.has(session.id)}
           maxWidth={maxWidth}
         />
       ))}
 
-      {/* Scroll indicator: below */}
-      {belowCount > 0 && (
-        <Text dimColor>  ↓ {belowCount} more below</Text>
-      )}
+      {belowCount > 0 && <Text dimColor>  ↓ {belowCount} more below</Text>}
 
-      {/* Footer */}
       <Box marginTop={1}>
-        <Text dimColor>↑↓ / jk  navigate    enter  resume    q  quit</Text>
+        <Text dimColor>{footerHint}</Text>
       </Box>
     </Box>
   )
@@ -180,21 +196,21 @@ function EmptyState() {
   )
 }
 
-export async function runPicker(sessions: Session[]): Promise<Session | null> {
+export async function runPicker(sessions: Session[]): Promise<Session[]> {
   if (sessions.length === 0) {
     const { waitUntilExit, unmount } = render(<EmptyState />)
     await new Promise(r => setTimeout(r, 2000))
     unmount()
     await waitUntilExit().catch(() => {})
-    return null
+    return []
   }
 
-  let selected: Session | null = null
+  let selected: Session[] = []
 
   const { waitUntilExit } = render(
     <Picker
       sessions={sessions}
-      onSelect={(s) => { selected = s }}
+      onConfirm={(s) => { selected = s }}
       onExit={() => {}}
     />,
   )

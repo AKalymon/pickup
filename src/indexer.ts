@@ -1,5 +1,5 @@
 import { type Database } from 'bun:sqlite'
-import { getMtimeMap, upsertMany, removeStale } from './db.ts'
+import { getMtimeMap, upsertMany, removeStale, getTrackedMtime, setTrackedMtime } from './db.ts'
 import { type Session } from './parsers/types.ts'
 import { parseCodexSession, collectCodexFiles } from './parsers/codex.ts'
 import { parseClaudeSessions, collectClaudeFiles } from './parsers/claude.ts'
@@ -90,15 +90,24 @@ async function syncClaude(
   const claudeFiles = allFiles.filter(f => f.tool === 'claude')
   if (claudeFiles.length === 0) return
 
-  // Check if any claude session files are stale
-  const hasStale = opts.refresh || claudeFiles.some(f => cachedMtimes.get(f.path) !== f.mtime)
+  const historyPath = join(home, '.claude', 'history.jsonl')
+
+  // Check history.jsonl mtime — it updates with every message, independently of session files
+  let historyMtime = 0
+  try {
+    historyMtime = (await Bun.file(historyPath).stat()).mtimeMs
+  } catch { /* history.jsonl may not exist yet */ }
+
+  const sessionFilesStale = claudeFiles.some(f => cachedMtimes.get(f.path) !== f.mtime)
+  const historyStale = historyMtime !== getTrackedMtime(db, historyPath)
+  const hasStale = opts.refresh || sessionFilesStale || historyStale
+
   if (!hasStale) return
 
   // Parse all Claude sessions as a batch (history.jsonl join is shared)
-  const { parseClaudeSessions } = await import('./parsers/claude.ts')
   const sessions = await parseClaudeSessions(
     join(home, '.claude', 'sessions'),
-    join(home, '.claude', 'history.jsonl'),
+    historyPath,
   )
 
   // Attach correct mtimes from our stat results
@@ -109,6 +118,9 @@ async function syncClaude(
   }))
 
   upsertMany(db, withMtimes)
+
+  // Persist history.jsonl mtime so next run knows if it changed
+  setTrackedMtime(db, historyPath, historyMtime)
 }
 
 /**
@@ -138,7 +150,11 @@ export async function sync(db: Database, opts: SyncOptions = {}): Promise<void> 
     ? allFiles
     : allFiles.filter(f => cachedMtimes.get(f.path) !== f.mtime)
 
-  if (staleFiles.length === 0) return
+  // Always attempt Claude sync — it checks history.jsonl mtime independently
+  const needsClaudeSync = !opts.tool || opts.tool === 'claude'
+  const hasNonClaudeWork = staleFiles.some(f => f.tool !== 'claude')
+
+  if (!needsClaudeSync && !hasNonClaudeWork && staleFiles.length === 0) return
 
   // Sort newest first — for the fast path we parse top-N and stop
   staleFiles.sort((a, b) => b.mtime - a.mtime)
@@ -154,8 +170,8 @@ export async function sync(db: Database, opts: SyncOptions = {}): Promise<void> 
   const valid = parsed.filter((s): s is Session => s !== null)
   upsertMany(db, valid)
 
-  // Claude batch sync
-  if (!opts.tool || opts.tool === 'claude') {
+  // Claude batch sync (always runs when Claude is in scope — history.jsonl changes independently)
+  if (needsClaudeSync) {
     await syncClaude(db, allFiles, cachedMtimes, opts)
   }
 }

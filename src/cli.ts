@@ -132,7 +132,7 @@ async function main() {
     console.log(JSON.stringify(sessions, null, 2))
   } else if (process.stdout.isTTY) {
     const selected = await runPicker(sessions)
-    if (selected) launch(selected)
+    if (selected.length > 0) launch(selected)
   } else {
     // Non-TTY (piped output) — fall back to table
     formatSessionTable(sessions)
