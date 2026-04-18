@@ -75,7 +75,7 @@ describe('upsertMany', () => {
     upsertMany(db, [s1])
     const updated: Session = { ...s1, lastUser: 'new message', fileMtime: 9999 }
     upsertMany(db, [updated])
-    const rows = db.query<{ last_user: string; file_mtime: number }, []>(
+    const rows = db.query<{ last_user: string; file_mtime: number }, [string]>(
       'SELECT last_user, file_mtime FROM sessions WHERE id = ?'
     ).all(s1.id)
     expect(rows[0]!.last_user).toBe('new message')
@@ -90,7 +90,7 @@ describe('upsertMany', () => {
   test('stores null for undefined optional fields', () => {
     const db = memDb()
     upsertMany(db, [s3]) // no lastUser or lastAgent
-    const row = db.query<{ last_user: null; last_agent: null }, []>(
+    const row = db.query<{ last_user: null; last_agent: null }, [string]>(
       'SELECT last_user, last_agent FROM sessions WHERE id = ?'
     ).get(s3.id)
     expect(row!.last_user).toBeNull()

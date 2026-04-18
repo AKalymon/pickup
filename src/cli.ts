@@ -1,6 +1,8 @@
 #!/usr/bin/env bun
 import { openDb, querySessions } from './db.ts'
 import { sync } from './indexer.ts'
+import { runPicker } from './picker.tsx'
+import { launch } from './launcher.ts'
 
 const VERSION = '0.1.0'
 
@@ -128,7 +130,11 @@ async function main() {
 
   if (args.json) {
     console.log(JSON.stringify(sessions, null, 2))
+  } else if (process.stdout.isTTY) {
+    const selected = await runPicker(sessions)
+    if (selected) launch(selected)
   } else {
+    // Non-TTY (piped output) — fall back to table
     formatSessionTable(sessions)
   }
 }
