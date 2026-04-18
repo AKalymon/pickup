@@ -1,29 +1,45 @@
 {
   "name": "pickup",
   "version": "0.1.0",
-  "description": "A fast, clean session resume picker for AI coding tools",
+  "description": "Fast, clean session resume picker for Claude Code, GitHub Copilot CLI, and OpenAI Codex",
   "module": "src/cli.ts",
   "type": "module",
   "bin": {
-    "pickup": "./src/cli.ts"
+    "pickup": "./bin/pickup.js"
   },
+  "files": [
+    "bin/",
+    "src/"
+  ],
   "scripts": {
     "start": "bun run src/cli.ts",
     "test": "bun test",
-    "build": "bun build ./src/cli.ts --outfile dist/cli.js --target node",
     "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup"
+  },
+  "optionalDependencies": {
+    "@pickup-cli/linux-x64":    "0.1.0",
+    "@pickup-cli/linux-arm64":  "0.1.0",
+    "@pickup-cli/darwin-x64":   "0.1.0",
+    "@pickup-cli/darwin-arm64": "0.1.0",
+    "@pickup-cli/win32-x64":    "0.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/react": "^19.2.14"
   },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
-  "license": "MIT",
   "dependencies": {
     "ink": "^7.0.1",
     "react": "^19.2.5",
     "yaml": "^2.8.3"
+  },
+  "keywords": ["claude", "codex", "copilot", "ai", "session", "resume", "cli", "tui"],
+  "homepage": "https://github.com/AKalymon/pickup",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AKalymon/pickup.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
   }
 }

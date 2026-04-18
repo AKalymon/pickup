@@ -1,0 +1,12 @@
+{
+  "name": "@pickup-cli/linux-x64",
+  "version": "0.1.0",
+  "description": "pickup binary for linux x64",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AKalymon/pickup.git"
+  }
+}

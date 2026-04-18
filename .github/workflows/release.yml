@@ -1,0 +1,124 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: bun-linux-x64
+            pkg:    linux-x64
+            binary: pickup
+          - target: bun-linux-arm64
+            pkg:    linux-arm64
+            binary: pickup
+          - target: bun-darwin-x64
+            pkg:    darwin-x64
+            binary: pickup
+          - target: bun-darwin-arm64
+            pkg:    darwin-arm64
+            binary: pickup
+          - target: bun-windows-x64
+            pkg:    win32-x64
+            binary: pickup.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      - name: Compile binary
+        run: |
+          bun build ./src/cli.ts \
+            --compile \
+            --target=${{ matrix.target }} \
+            --outfile npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.pkg }}
+          path: npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # for GitHub Release creation
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install
+
+      # Download all compiled binaries
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          merge-multiple: false
+
+      - name: Place binaries
+        run: |
+          for pkg in linux-x64 linux-arm64 darwin-x64 darwin-arm64; do
+            mkdir -p npm/@pickup-cli/$pkg/bin
+            cp binary-$pkg/pickup npm/@pickup-cli/$pkg/bin/pickup
+            chmod +x npm/@pickup-cli/$pkg/bin/pickup
+          done
+          mkdir -p npm/@pickup-cli/win32-x64/bin
+          cp binary-win32-x64/pickup.exe npm/@pickup-cli/win32-x64/bin/pickup.exe
+
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          bun x json -I -f package.json -e "this.version='$VERSION'"
+          for pkg in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            bun x json -I -f npm/@pickup-cli/$pkg/package.json -e "this.version='$VERSION'"
+          done
+          # Update optionalDependencies versions in main package
+          bun x json -I -f package.json -e "
+            Object.keys(this.optionalDependencies).forEach(k => this.optionalDependencies[k] = '$VERSION')
+          "
+
+      # Publish platform packages first
+      - name: Publish platform packages
+        run: |
+          for pkg in linux-x64 linux-arm64 darwin-x64 darwin-arm64 win32-x64; do
+            npm publish npm/@pickup-cli/$pkg --access public
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Publish main package
+      - name: Publish main package
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Create GitHub Release with binaries attached
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            npm/@pickup-cli/linux-x64/bin/pickup
+            npm/@pickup-cli/linux-arm64/bin/pickup
+            npm/@pickup-cli/darwin-x64/bin/pickup
+            npm/@pickup-cli/darwin-arm64/bin/pickup
+            npm/@pickup-cli/win32-x64/bin/pickup.exe
+          generate_release_notes: true

@@ -6,6 +6,10 @@ out
 dist
 *.tgz
 
+# compiled platform binaries (added by CI, not committed)
+npm/@pickup-cli/*/bin/pickup
+npm/@pickup-cli/*/bin/pickup.exe
+
 # code coverage
 coverage
 *.lcov
