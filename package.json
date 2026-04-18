@@ -1,5 +1,5 @@
 {
-  "name": "pickup",
+  "name": "pickup-cli",
   "version": "0.1.0",
   "description": "Fast, clean session resume picker for Claude Code, GitHub Copilot CLI, and OpenAI Codex",
   "module": "src/cli.ts",
