@@ -17,15 +17,16 @@
     "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup"
   },
   "optionalDependencies": {
-    "@pickup-cli/linux-x64":    "0.1.0",
-    "@pickup-cli/linux-arm64":  "0.1.0",
-    "@pickup-cli/darwin-x64":   "0.1.0",
+    "@pickup-cli/linux-x64": "0.1.0",
+    "@pickup-cli/linux-arm64": "0.1.0",
+    "@pickup-cli/darwin-x64": "0.1.0",
     "@pickup-cli/darwin-arm64": "0.1.0",
-    "@pickup-cli/win32-x64":    "0.1.0"
+    "@pickup-cli/win32-x64": "0.1.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/react": "^19.2.14"
+    "@types/react": "^19.2.14",
+    "react-devtools-core": "^7.0.1"
   },
   "dependencies": {
     "ink": "^7.0.1",
