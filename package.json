@@ -1,0 +1,26 @@
+{
+  "name": "pickup",
+  "version": "0.1.0",
+  "description": "A fast, clean session resume picker for AI coding tools",
+  "module": "src/cli.ts",
+  "type": "module",
+  "bin": {
+    "pickup": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "bun run src/cli.ts",
+    "test": "bun test",
+    "build": "bun build ./src/cli.ts --outfile dist/cli.js --target node",
+    "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "yaml": "^2.8.3"
+  }
+}
