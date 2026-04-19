@@ -1,25 +1,82 @@
 import { describe, test, expect } from 'bun:test'
-import { detectEmulator } from '../src/terminal.ts'
+import { findTerminalEmulator } from '../src/terminal.ts'
+import type { WhichLookup, EnvironmentVars } from '../src/ports.ts'
 
-describe('detectEmulator', () => {
-  test('returns an emulator object or null', () => {
-    const result = detectEmulator()
-    if (result !== null) {
-      expect(typeof result.name).toBe('string')
-      expect(typeof result.buildArgv).toBe('function')
-    } else {
-      expect(result).toBeNull()
-    }
+function makeEnv(vars: Record<string, string>): EnvironmentVars {
+  return { get: (key) => vars[key] }
+}
+
+function makeWhich(available: string[]): WhichLookup {
+  return { isOnPath: (bin) => available.includes(bin) }
+}
+
+const emptyEnv   = makeEnv({})
+const nothingOn  = makeWhich([])
+
+describe('findTerminalEmulator', () => {
+  test('returns null when nothing is available', () => {
+    expect(findTerminalEmulator(emptyEnv, nothingOn)).toBeNull()
   })
 
-  test('buildArgv wraps the given command', () => {
-    const result = detectEmulator()
-    if (!result) return // skip if no emulator available in CI
+  test('detects kitty via KITTY_PID env var', () => {
+    const emulator = findTerminalEmulator(makeEnv({ KITTY_PID: '123' }), nothingOn)
+    expect(emulator).not.toBeNull()
+    expect(emulator!.name).toBe('kitty')
+  })
 
-    const argv = result.buildArgv(['claude', '--resume', 'abc'])
-    expect(argv.length).toBeGreaterThan(3)
-    // The resume command should appear somewhere in the argv
-    expect(argv.join(' ')).toContain('claude')
-    expect(argv.join(' ')).toContain('--resume')
+  test('detects alacritty via ALACRITTY_LOG env var', () => {
+    const emulator = findTerminalEmulator(makeEnv({ ALACRITTY_LOG: '/tmp/log' }), nothingOn)
+    expect(emulator!.name).toBe('alacritty')
+  })
+
+  test('detects wezterm via WEZTERM_PANE env var', () => {
+    const emulator = findTerminalEmulator(makeEnv({ WEZTERM_PANE: '0' }), nothingOn)
+    expect(emulator!.name).toBe('wezterm')
+  })
+
+  test('falls back to PATH detection when env vars absent', () => {
+    const emulator = findTerminalEmulator(emptyEnv, makeWhich(['xterm']))
+    expect(emulator!.name).toBe('xterm')
+  })
+
+  test('prefers env-matched emulator over PATH-only', () => {
+    // kitty matches env, xterm is on path — kitty wins (first match wins)
+    const emulator = findTerminalEmulator(makeEnv({ KITTY_PID: '1' }), makeWhich(['xterm']))
+    expect(emulator!.name).toBe('kitty')
+  })
+
+  test('detects gnome-terminal via PATH', () => {
+    const emulator = findTerminalEmulator(emptyEnv, makeWhich(['gnome-terminal']))
+    expect(emulator!.name).toBe('gnome-terminal')
+  })
+
+  test('buildTerminalCommand wraps the command for kitty', () => {
+    const emulator = findTerminalEmulator(makeEnv({ KITTY_PID: '1' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
+    expect(cmd).toEqual(['kitty', '--hold', '--', 'claude', '--resume', 'abc'])
+  })
+
+  test('buildTerminalCommand wraps the command for alacritty', () => {
+    const emulator = findTerminalEmulator(makeEnv({ ALACRITTY_LOG: '/log' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['codex', 'resume', 'xyz'])
+    expect(cmd).toEqual(['alacritty', '-e', 'codex', 'resume', 'xyz'])
+  })
+
+  test('buildTerminalCommand wraps the command for wezterm', () => {
+    const emulator = findTerminalEmulator(makeEnv({ WEZTERM_PANE: '0' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
+    expect(cmd).toEqual(['wezterm', 'start', '--', 'claude', '--resume', 'abc'])
+  })
+
+  test('buildTerminalCommand wraps the command for gnome-terminal', () => {
+    const emulator = findTerminalEmulator(emptyEnv, makeWhich(['gnome-terminal']))
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
+    expect(cmd).toEqual(['gnome-terminal', '--', 'claude', '--resume', 'abc'])
+  })
+
+  test('buildTerminalCommand wraps the command for xterm', () => {
+    const emulator = findTerminalEmulator(emptyEnv, makeWhich(['xterm']))
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
+    expect(cmd).toEqual(['xterm', '-e', 'claude', '--resume', 'abc'])
   })
 })
