@@ -22,6 +22,18 @@ if (pkgName) {
     const binFile = platform === 'win32' ? 'pickup.exe' : 'pickup'
     const binPath = require.resolve(`${pkgName}/bin/${binFile}`)
     const result = spawnSync(binPath, process.argv.slice(2), { stdio: 'inherit' })
+
+    // Gatekeeper or similar security tool killed the binary silently
+    if (result.status === null && result.signal === null && !result.error) {
+      console.error(
+        '\npickup: the binary was blocked (likely macOS Gatekeeper).\n' +
+        'To fix, run:\n\n' +
+        `  xattr -dr com.apple.quarantine "${binPath}"\n\n` +
+        'Then try pickup again.\n'
+      )
+      process.exit(1)
+    }
+
     process.exit(result.status ?? 0)
   } catch {
     // platform package not installed — fall through to bun fallback
