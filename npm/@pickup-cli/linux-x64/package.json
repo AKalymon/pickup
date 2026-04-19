@@ -1,9 +1,10 @@
 {
   "name": "@pickup-cli/linux-x64",
   "version": "0.1.0",
-  "description": "pickup binary for linux x64",
+  "description": "pickup binary for linux-x64",
   "os": ["linux"],
   "cpu": ["x64"],
+  "files": ["bin/"],
   "license": "MIT",
   "repository": {
     "type": "git",
