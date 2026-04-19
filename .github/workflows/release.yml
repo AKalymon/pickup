@@ -7,25 +7,30 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - target: bun-linux-x64
             pkg:    linux-x64
             binary: pickup
+            runner: ubuntu-latest
           - target: bun-linux-arm64
             pkg:    linux-arm64
             binary: pickup
+            runner: ubuntu-latest
           - target: bun-darwin-x64
             pkg:    darwin-x64
             binary: pickup
+            runner: macos-latest
           - target: bun-darwin-arm64
             pkg:    darwin-arm64
             binary: pickup
+            runner: macos-latest
           - target: bun-windows-x64
             pkg:    win32-x64
             binary: pickup.exe
+            runner: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -42,6 +47,10 @@ jobs:
             --compile \
             --target=${{ matrix.target }} \
             --outfile npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
+
+      - name: Sign binary (macOS)
+        if: startsWith(matrix.pkg, 'darwin')
+        run: codesign --sign - --force npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
