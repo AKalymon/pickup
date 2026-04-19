@@ -14,7 +14,8 @@
   "scripts": {
     "start": "bun run src/cli.ts",
     "test": "bun test",
-    "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup"
+    "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup",
+    "postinstall": "node bin/postinstall.cjs"
   },
   "optionalDependencies": {
     "@pickup-cli/linux-x64": "0.1.0",
