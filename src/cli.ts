@@ -3,8 +3,9 @@ import { openDb, querySessions } from './db.ts'
 import { sync } from './indexer.ts'
 import { runPicker } from './picker.tsx'
 import { launch } from './launcher.ts'
+import pkg from '../package.json'
 
-const VERSION = '0.1.0'
+const VERSION = pkg.version
 
 function printHelp() {
   console.log(`pickup v${VERSION} — better AI session resume picker
