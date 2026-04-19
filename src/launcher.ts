@@ -41,7 +41,7 @@ export function launchSingle(session: Session): never {
 }
 
 /** Launch multiple sessions, each in a new terminal window. */
-export function launchMultiple(sessions: Session[]): never {
+function launchMultiple(sessions: Session[]): void {
   const emulator = detectEmulator()
 
   if (!emulator) {
@@ -79,15 +79,13 @@ export function launchMultiple(sessions: Session[]): never {
 
   // Small delay to let spawn errors surface before exiting
   setTimeout(() => process.exit(failures > 0 ? 1 : 0), 200)
-  // Keep process alive for the timeout
-  process.exitCode = 0
-  throw new Error('unreachable') as never
 }
 
 /** Entry point: single session → current terminal, multiple → new windows. */
-export function launch(sessions: Session[]): never {
+export function launch(sessions: Session[]): void {
   if (sessions.length === 1) {
-    return launchSingle(sessions[0]!)
+    launchSingle(sessions[0]!)
+  } else {
+    launchMultiple(sessions)
   }
-  return launchMultiple(sessions)
 }
