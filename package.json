@@ -5,7 +5,7 @@
   "module": "src/cli.ts",
   "type": "module",
   "bin": {
-    "pickup": "./bin/pickup.js"
+    "pickup": "./bin/pickup.cjs"
   },
   "files": [
     "bin/",
