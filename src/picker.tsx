@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { render, Box, Text, useInput, useApp, useStdout } from 'ink'
 import { type Session } from './parsers/types.ts'
+import { describeTimeAgo, abbreviateHomePath } from './format.ts'
 
 const TOOL_COLOR: Record<string, string> = {
   claude:  'yellow',
@@ -10,23 +11,6 @@ const TOOL_COLOR: Record<string, string> = {
 
 // Lines rendered per session row (header + dir + 2 message lines + 1 gap)
 const ROW_LINES = 5
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms
-  const m = Math.floor(diff / 60_000)
-  const h = Math.floor(diff / 3_600_000)
-  const d = Math.floor(diff / 86_400_000)
-  if (m < 1)  return 'just now'
-  if (m < 60) return `${m}m ago`
-  if (h < 24) return `${h}h ago`
-  if (d === 1) return 'yesterday'
-  return `${d}d ago`
-}
-
-function shortenPath(p: string): string {
-  const home = process.env.HOME ?? ''
-  return home && p.startsWith(home) ? `~${p.slice(home.length)}` : p
-}
 
 function truncateToWidth(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s
@@ -41,8 +25,8 @@ interface SessionRowProps {
 
 function SessionRow({ session, isFocused, isChecked, maxWidth }: SessionRowProps) {
   const color = TOOL_COLOR[session.tool] ?? 'white'
-  const path = truncateToWidth(shortenPath(session.cwd), maxWidth - 20)
-  const time = relativeTime(session.updatedAt)
+  const path = truncateToWidth(abbreviateHomePath(session.cwd, process.env.HOME ?? ''), maxWidth - 20)
+  const time = describeTimeAgo(session.updatedAt)
 
   const checkbox = isChecked ? '[✓]' : '[ ]'
 
