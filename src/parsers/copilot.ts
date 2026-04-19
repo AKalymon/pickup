@@ -1,8 +1,10 @@
-import { type Session, truncate } from './types.ts'
+import { type Session } from './types.ts'
+import { truncateMessage } from '../format.ts'
+import { scanTailForLastMessages } from './tail-scan.ts'
 import { join, dirname } from 'node:path'
 import { parse as parseYaml } from 'yaml'
 
-interface WorkspaceYaml {
+export interface WorkspaceYaml {
   id: string
   cwd: string
   created_at: string
@@ -11,6 +13,34 @@ interface WorkspaceYaml {
 }
 
 const TAIL_BYTES = 32768
+
+/** Pure: parse workspace YAML text. Returns null if invalid. */
+export function parseCopilotWorkspaceYaml(text: string): WorkspaceYaml | null {
+  try {
+    const data = parseYaml(text) as WorkspaceYaml
+    if (!data?.id || !data?.cwd) return null
+    return data
+  } catch {
+    return null
+  }
+}
+
+/** Pure: parse events.jsonl text and extract last user/agent messages. */
+export function parseCopilotEvents(text: string): { lastUser?: string; lastAgent?: string } {
+  if (!text.trim()) return {}
+  const { lastUser: rawUser, lastAgent: rawAgent } = scanTailForLastMessages(text, (parsed) => {
+    const e = parsed as { type: string; data: { content?: string } }
+    const content = e.data?.content
+    if (!content) return null
+    if (e.type === 'user.message') return { role: 'user', content }
+    if (e.type === 'assistant.message') return { role: 'agent', content }
+    return null
+  })
+  return {
+    lastUser: rawUser ? truncateMessage(rawUser) : undefined,
+    lastAgent: rawAgent ? truncateMessage(rawAgent) : undefined,
+  }
+}
 
 async function readLastMessages(
   sessionDir: string,
@@ -24,32 +54,12 @@ async function readLastMessages(
     const raw = size > TAIL_BYTES
       ? await file.slice(size - TAIL_BYTES).text()
       : await file.text()
-    // Skip potential partial first line if we sliced mid-file
     const startIdx = size > TAIL_BYTES ? raw.indexOf('\n') + 1 : 0
     text = raw.slice(startIdx)
   } catch {
     return {}
   }
-
-  const lines = text.split('\n').filter(Boolean).reverse()
-  let lastUser: string | undefined
-  let lastAgent: string | undefined
-
-  for (const line of lines) {
-    if (lastUser && lastAgent) break
-    let entry: { type: string; data: { content?: string } }
-    try {
-      entry = JSON.parse(line)
-    } catch {
-      continue
-    }
-    const content = entry.data?.content
-    if (!content) continue
-    if (!lastUser && entry.type === 'user.message') lastUser = truncate(content)
-    if (!lastAgent && entry.type === 'assistant.message') lastAgent = truncate(content)
-  }
-
-  return { lastUser, lastAgent }
+  return parseCopilotEvents(text)
 }
 
 export async function parseCopilotSessions(sessionsDir?: string): Promise<Session[]> {
@@ -78,14 +88,8 @@ export async function parseCopilotWorkspace(filePath: string): Promise<Session |
     return null
   }
 
-  let data: WorkspaceYaml
-  try {
-    data = parseYaml(text) as WorkspaceYaml
-  } catch {
-    return null
-  }
-
-  if (!data?.id || !data?.cwd) return null
+  const data = parseCopilotWorkspaceYaml(text)
+  if (!data) return null
 
   const stat = await Bun.file(filePath).stat()
   const updatedAt = data.updated_at
