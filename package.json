@@ -2,7 +2,7 @@
   "name": "pickup-cli",
   "version": "0.1.0",
   "description": "Fast, clean session resume picker for Claude Code, GitHub Copilot CLI, and OpenAI Codex",
-  "module": "src/cli.ts",
+  "module": "src/main.ts",
   "type": "module",
   "bin": {
     "pickup": "./bin/pickup.cjs"
@@ -12,9 +12,9 @@
     "src/"
   ],
   "scripts": {
-    "start": "bun run src/cli.ts",
+    "start": "bun run src/main.ts",
     "test": "bun test",
-    "compile": "bun build ./src/cli.ts --compile --outfile dist/pickup",
+    "compile": "bun build ./src/main.ts --compile --outfile dist/pickup",
     "postinstall": "node bin/postinstall.cjs"
   },
   "optionalDependencies": {
