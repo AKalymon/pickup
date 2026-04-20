@@ -23,13 +23,15 @@ if (pkgName) {
     const binPath = require.resolve(`${pkgName}/bin/${binFile}`)
     const result = spawnSync(binPath, process.argv.slice(2), { stdio: 'inherit' })
 
-    // Gatekeeper or similar security tool killed the binary silently
-    if (result.status === null && result.signal === null && !result.error) {
+    // Gatekeeper or similar security tool killed the binary
+    if (result.status === null && !result.error) {
+      const binStr = String(binPath)
       console.error(
-        '\npickup: the binary was blocked (likely macOS Gatekeeper).\n' +
+        '\npickup: the binary was blocked by macOS security (Gatekeeper).\n' +
         'To fix, run:\n\n' +
-        `  xattr -dr com.apple.quarantine "${binPath}"\n\n` +
-        'Then try pickup again.\n'
+        `  xattr -dr com.apple.quarantine "${binStr}"\n\n` +
+        'Then try pickup again.\n' +
+        'For a permanent fix, see: https://github.com/AKalymon/pickup#macos\n'
       )
       process.exit(1)
     }

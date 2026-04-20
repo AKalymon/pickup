@@ -66,6 +66,18 @@ Selecting a single session resumes it in the current terminal window. Selecting 
 | `--version` | Print version |
 | `--help` | Print help |
 
+## macOS & Gatekeeper
+
+If you see a "blocked by macOS security" error, run:
+
+```bash
+xattr -dr com.apple.quarantine "$(npm root -g)/@pickup-cli/darwin-arm64/bin/pickup"
+# or for Intel Macs:
+xattr -dr com.apple.quarantine "$(npm root -g)/@pickup-cli/darwin-x64/bin/pickup"
+```
+
+This is a known limitation of unsigned binaries distributed via npm. A permanent fix requires Apple notarization, which is on the roadmap.
+
 ## License
 
 MIT
