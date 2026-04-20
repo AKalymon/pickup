@@ -1,4 +1,5 @@
-import { type Session, truncate } from './types.ts'
+import { type Session } from './types.ts'
+import { truncateMessage } from '../format.ts'
 import { join } from 'node:path'
 
 interface ClaudeSessionFile {
@@ -15,81 +16,81 @@ interface HistoryEntry {
   timestamp: number
 }
 
-interface LastEntry {
+export interface LastEntry {
   display: string
   timestamp: number
 }
 
+// ─── I/O entry point ──────────────────────────────────────────────────────────
+
+/** Read all Claude sessions from disk and join them with history. */
 export async function parseClaudeSessions(
   sessionsDir?: string,
   historyPath?: string,
 ): Promise<Session[]> {
-  const home = process.env.HOME ?? ''
-  const sDir = sessionsDir ?? join(home, '.claude', 'sessions')
+  const home  = process.env.HOME ?? ''
+  const sDir  = sessionsDir ?? join(home, '.claude', 'sessions')
   const hPath = historyPath ?? join(home, '.claude', 'history.jsonl')
 
-  // --- Parse session metadata files (tiny JSON, parse all in parallel) ---
-  const glob = new Bun.Glob('*.json')
-  const sessionFiles: string[] = []
-  for await (const f of glob.scan({ cwd: sDir, onlyFiles: true })) {
-    sessionFiles.push(join(sDir, f))
-  }
+  const metas   = await readAllSessionMetas(sDir)
+  const history = parseClaudeHistory(await readFileOrEmpty(hPath))
 
-  if (sessionFiles.length === 0) return []
+  return joinClaudeSessionsWithHistory(metas, history)
+}
 
-  const metaResults = await Promise.all(
-    sessionFiles.map(async (filePath) => {
-      try {
-        const raw = await Bun.file(filePath).text()
-        const data: ClaudeSessionFile = JSON.parse(raw)
-        if (!data.sessionId) return null
-        const stat = await Bun.file(filePath).stat()
-        return { ...data, filePath, fileMtime: stat.mtimeMs }
-      } catch {
-        return null
-      }
-    }),
-  )
+// ─── Pure functions ───────────────────────────────────────────────────────────
 
-  const sessions = metaResults.filter((s): s is NonNullable<typeof s> => s !== null)
-  if (sessions.length === 0) return []
-
-  // --- Scan history.jsonl once — build Map<sessionId, latestEntry> ---
-  const history = new Map<string, LastEntry>()
+/** Parse a single session metadata JSON file. */
+export function parseClaudeSessionJson(raw: string): ClaudeSessionFile | null {
   try {
-    const text = await Bun.file(hPath).text()
-    for (const line of text.split('\n')) {
-      if (!line.trim()) continue
-      try {
-        const entry: HistoryEntry = JSON.parse(line)
-        if (!entry.sessionId || !entry.display) continue
-        const existing = history.get(entry.sessionId)
-        if (!existing || entry.timestamp > existing.timestamp) {
-          history.set(entry.sessionId, { display: entry.display, timestamp: entry.timestamp })
-        }
-      } catch {
-        // skip malformed lines
-      }
-    }
+    const data: ClaudeSessionFile = JSON.parse(raw)
+    if (!data.sessionId) return null
+    return data
   } catch {
-    // history.jsonl may not exist yet
+    return null
   }
+}
 
-  // --- Join ---
-  return sessions.map((s) => {
+/** Parse history.jsonl text into a map of sessionId → latest entry. */
+export function parseClaudeHistory(text: string): Map<string, LastEntry> {
+  const history = new Map<string, LastEntry>()
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try {
+      const entry: HistoryEntry = JSON.parse(line)
+      if (!entry.sessionId || !entry.display) continue
+      const existing = history.get(entry.sessionId)
+      if (!existing || entry.timestamp > existing.timestamp) {
+        history.set(entry.sessionId, { display: entry.display, timestamp: entry.timestamp })
+      }
+    } catch {
+      // skip malformed lines
+    }
+  }
+  return history
+}
+
+/** Join session metadata with history entries to produce Session objects. */
+export function joinClaudeSessionsWithHistory(
+  metas: Array<ClaudeSessionFile & { filePath: string; fileMtime: number }>,
+  history: Map<string, LastEntry>,
+): Session[] {
+  return metas.map((s) => {
     const last = history.get(s.sessionId)
     return {
-      id: s.sessionId,
-      tool: 'claude' as const,
-      cwd: s.cwd,
+      id:        s.sessionId,
+      tool:      'claude' as const,
+      cwd:       s.cwd,
       updatedAt: last?.timestamp ?? s.startedAt,
-      lastUser: last?.display ? truncate(last.display) : undefined,
+      lastUser:  last?.display ? truncateMessage(last.display) : undefined,
       lastAgent: undefined, // Claude doesn't expose agent responses in history.jsonl
-      filePath: s.filePath,
+      filePath:  s.filePath,
       fileMtime: s.fileMtime,
     }
   })
 }
+
+// ─── File collection ──────────────────────────────────────────────────────────
 
 export async function collectClaudeFiles(sessionsDir?: string): Promise<string[]> {
   const base = sessionsDir ?? join(process.env.HOME ?? '', '.claude', 'sessions')
@@ -103,4 +104,34 @@ export async function collectClaudeFiles(sessionsDir?: string): Promise<string[]
     // dir doesn't exist or isn't readable
   }
   return files
+}
+
+// ─── Private helpers ──────────────────────────────────────────────────────────
+
+async function readAllSessionMetas(sessionsDir: string) {
+  const glob  = new Bun.Glob('*.json')
+  const files: string[] = []
+  for await (const f of glob.scan({ cwd: sessionsDir, onlyFiles: true })) {
+    files.push(join(sessionsDir, f))
+  }
+  if (files.length === 0) return []
+
+  const results = await Promise.all(files.map(readOneSessionMeta))
+  return results.filter((m): m is NonNullable<typeof m> => m !== null)
+}
+
+async function readOneSessionMeta(filePath: string) {
+  try {
+    const raw  = await Bun.file(filePath).text()
+    const data = parseClaudeSessionJson(raw)
+    if (!data) return null
+    const stat = await Bun.file(filePath).stat()
+    return { ...data, filePath, fileMtime: stat.mtimeMs }
+  } catch {
+    return null
+  }
+}
+
+async function readFileOrEmpty(path: string): Promise<string> {
+  try { return await Bun.file(path).text() } catch { return '' }
 }

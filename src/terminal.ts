@@ -1,48 +1,47 @@
-import { spawnSync } from 'node:child_process'
+import type { WhichLookup, EnvironmentVars } from './ports.ts'
 
 export interface Emulator {
   name: string
-  buildArgv: (cmd: string[]) => string[]
+  buildTerminalCommand(cmd: string[]): string[]
 }
 
 // Ordered by reliability of detection
-const EMULATORS: Array<{ envKey?: string; bin: string; buildArgv: (cmd: string[]) => string[] }> = [
+const EMULATORS: Array<{
+  envKey?: string
+  bin: string
+  buildTerminalCommand(cmd: string[]): string[]
+}> = [
   {
     envKey: 'KITTY_PID',
     bin: 'kitty',
-    buildArgv: (cmd) => ['kitty', '--hold', '--', ...cmd],
+    buildTerminalCommand: (cmd) => ['kitty', '--hold', '--', ...cmd],
   },
   {
     envKey: 'ALACRITTY_LOG',
     bin: 'alacritty',
-    buildArgv: (cmd) => ['alacritty', '-e', ...cmd],
+    buildTerminalCommand: (cmd) => ['alacritty', '-e', ...cmd],
   },
   {
     envKey: 'WEZTERM_PANE',
     bin: 'wezterm',
-    buildArgv: (cmd) => ['wezterm', 'start', '--', ...cmd],
+    buildTerminalCommand: (cmd) => ['wezterm', 'start', '--', ...cmd],
   },
   {
     bin: 'gnome-terminal',
-    buildArgv: (cmd) => ['gnome-terminal', '--', ...cmd],
+    buildTerminalCommand: (cmd) => ['gnome-terminal', '--', ...cmd],
   },
   {
     bin: 'xterm',
-    buildArgv: (cmd) => ['xterm', '-e', ...cmd],
+    buildTerminalCommand: (cmd) => ['xterm', '-e', ...cmd],
   },
 ]
 
-function isOnPath(bin: string): boolean {
-  const result = spawnSync('which', [bin], { stdio: 'pipe' })
-  return result.status === 0
-}
-
-export function detectEmulator(): Emulator | null {
+export function findTerminalEmulator(env: EnvironmentVars, which: WhichLookup): Emulator | null {
   for (const e of EMULATORS) {
-    const matchesEnv = e.envKey ? !!process.env[e.envKey] : false
-    const available  = matchesEnv || isOnPath(e.bin)
+    const matchesEnv = e.envKey ? !!env.get(e.envKey) : false
+    const available  = matchesEnv || which.isOnPath(e.bin)
     if (available) {
-      return { name: e.bin, buildArgv: e.buildArgv }
+      return { name: e.bin, buildTerminalCommand: e.buildTerminalCommand }
     }
   }
   return null
