@@ -12,14 +12,13 @@ const { platform, arch } = process
 const PLATFORM_PACKAGES = {
   linux:  { x64: '@pickup-cli/linux-x64',  arm64: '@pickup-cli/linux-arm64'  },
   darwin: { x64: '@pickup-cli/darwin-x64', arm64: '@pickup-cli/darwin-arm64' },
-  win32:  { x64: '@pickup-cli/win32-x64'                                     },
 }
 
 const pkgName = PLATFORM_PACKAGES[platform]?.[arch]
 
 if (pkgName) {
   try {
-    const binFile = platform === 'win32' ? 'pickup.exe' : 'pickup'
+    const binFile = 'pickup'
     const binPath = require.resolve(`${pkgName}/bin/${binFile}`)
     const result = spawnSync(binPath, process.argv.slice(2), { stdio: 'inherit' })
 
