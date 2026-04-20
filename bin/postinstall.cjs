@@ -1,9 +1,20 @@
 #!/usr/bin/env node
 'use strict'
 
-const { execSync } = require('child_process')
+const { execSync, execFileSync } = require('child_process')
 const { join } = require('path')
 
+// --- macOS: strip quarantine + ad-hoc codesign the platform binary ---
+if (process.platform === 'darwin') {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  try {
+    const bin = require.resolve(`@pickup-cli/darwin-${arch}/bin/pickup`)
+    try { execFileSync('xattr', ['-dr', 'com.apple.quarantine', bin], { stdio: 'ignore' }) } catch {}
+    try { execFileSync('codesign', ['--force', '--sign', '-', bin], { stdio: 'ignore' }) } catch {}
+  } catch {}
+}
+
+// --- Warn when npm global bin isn't in PATH ---
 try {
   const globalBin = execSync('npm bin -g', { encoding: 'utf8' }).trim()
   const pathDirs = (process.env.PATH ?? '').split(':')
