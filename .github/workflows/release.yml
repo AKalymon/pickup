@@ -48,6 +48,11 @@ jobs:
             --target=${{ matrix.target }} \
             --outfile npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
 
+      - name: Sign binary (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          codesign --force --sign - npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }} || true
+
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
         with:

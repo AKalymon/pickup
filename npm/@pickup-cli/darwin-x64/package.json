@@ -4,7 +4,10 @@
   "description": "pickup binary for darwin-x64",
   "os": ["darwin"],
   "cpu": ["x64"],
-  "files": ["bin/"],
+  "files": ["bin/", "postinstall.cjs"],
+  "scripts": {
+    "postinstall": "node postinstall.cjs"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
