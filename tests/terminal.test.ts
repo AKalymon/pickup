@@ -34,6 +34,11 @@ describe('findTerminalEmulator', () => {
     expect(emulator!.name).toBe('wezterm')
   })
 
+  test('detects Ghostty via TERM_PROGRAM', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'ghostty' }), nothingOn)
+    expect(emulator!.name).toBe('Ghostty')
+  })
+
   test('detects iTerm via TERM_PROGRAM', () => {
     const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'iTerm.app' }), nothingOn)
     expect(emulator!.name).toBe('iTerm')
@@ -76,6 +81,22 @@ describe('findTerminalEmulator', () => {
     const emulator = findTerminalEmulator(makeEnv({ WEZTERM_PANE: '0' }), nothingOn)
     const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
     expect(cmd).toEqual(['wezterm', 'start', '--', 'claude', '--resume', 'abc'])
+  })
+
+  test('buildTerminalCommand wraps the command for Ghostty', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'ghostty' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'], '/Users/test/My Project')
+    expect(cmd).toEqual([
+      'open',
+      '-na',
+      'Ghostty.app',
+      '--args',
+      '--working-directory=/Users/test/My Project',
+      '-e',
+      'claude',
+      '--resume',
+      'abc',
+    ])
   })
 
   test('buildTerminalCommand wraps the command for iTerm', () => {

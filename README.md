@@ -45,7 +45,7 @@ pickup --help
 | `Enter` | Resume focused session (or all selected) |
 | `q` / `Esc` | Quit |
 
-Pressing `Enter` with no checked sessions resumes the focused session in the current terminal. Checking one or more sessions with `Space` switches to the separate-terminal flow and opens each checked session in its own terminal session. Supported multi-launch terminals: Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm.
+Pressing `Enter` with no checked sessions resumes the focused session in the current terminal. Checking one or more sessions with `Space` switches to the separate-terminal flow and opens each checked session in its own terminal session. Supported multi-launch terminals: Ghostty, Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm.
 
 ## Supported tools
 
@@ -70,7 +70,7 @@ Pressing `Enter` with no checked sessions resumes the focused session in the cur
 
 Tagged releases now ship Developer ID-signed, notarized macOS binaries so npm installs pass Gatekeeper without manual re-signing.
 
-Checked-session launches on macOS open separate Terminal.app or iTerm windows only when you explicitly select sessions with `Space`. Pressing `Enter` without any checked sessions still resumes the highlighted session in the current terminal.
+Checked-session launches on macOS open separate Ghostty, Terminal.app, or iTerm windows only when you explicitly select sessions with `Space`. Pressing `Enter` without any checked sessions still resumes the highlighted session in the current terminal.
 
 If you still see a "blocked by macOS security" error on an older install, run:
 

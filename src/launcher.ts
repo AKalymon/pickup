@@ -81,7 +81,7 @@ async function launchInNewTerminalWindows(sessions: Session[], deps: LaunchDeps)
   if (!emulator) {
     deps.logError(
       'pickup: could not detect a supported terminal emulator.\n' +
-      'Supported for separate terminal sessions: Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm'
+      'Supported for separate terminal sessions: Ghostty, Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm'
     )
     deps.exit(1)
   }

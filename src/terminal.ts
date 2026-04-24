@@ -33,6 +33,14 @@ const EMULATORS: Array<{
     buildTerminalCommand: (cmd) => ['wezterm', 'start', '--', ...cmd],
   },
   {
+    name: 'Ghostty',
+    envKey: 'TERM_PROGRAM',
+    envValue: 'ghostty',
+    bin: 'open',
+    detectOnPath: false,
+    buildTerminalCommand: (cmd, cwd) => buildGhosttyCommand(cmd, cwd),
+  },
+  {
     name: 'iTerm',
     envKey: 'TERM_PROGRAM',
     envValue: 'iTerm.app',
@@ -95,6 +103,12 @@ function buildTerminalAppCommand(cmd: string[], cwd?: string): string[] {
     '-e', `do script ${appleScriptString(shellCommand)}`,
     '-e', 'end tell',
   ]
+}
+
+function buildGhosttyCommand(cmd: string[], cwd?: string): string[] {
+  const args = ['open', '-na', 'Ghostty.app', '--args']
+  if (cwd) args.push(`--working-directory=${cwd}`)
+  return [...args, '-e', ...cmd]
 }
 
 function buildShellCommand(cmd: string[], cwd?: string): string {

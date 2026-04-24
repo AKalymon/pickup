@@ -238,6 +238,6 @@ describe('launchSessions', () => {
       await launchSessions([makeSession('codex', 'a'), makeSession('codex', 'b')], deps, 'separate-terminal-sessions')
     } catch {}
     expect(exitCode).toBe(1)
-    expect(errors[0]).toMatch(/Terminal\.app, iTerm/)
+    expect(errors[0]).toMatch(/Ghostty, Terminal\.app, iTerm/)
   })
 })

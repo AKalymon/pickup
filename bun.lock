@@ -19,7 +19,6 @@
         "@pickup-cli/darwin-x64": "0.1.0",
         "@pickup-cli/linux-arm64": "0.1.0",
         "@pickup-cli/linux-x64": "0.1.0",
-        "@pickup-cli/win32-x64": "0.1.0",
       },
     },
   },
