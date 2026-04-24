@@ -51,9 +51,9 @@ Pressing `Enter` with no checked sessions resumes the focused session in the cur
 
 | Tool | Session files |
 |------|--------------|
-| Claude Code | `~/.claude/projects/` |
-| GitHub Copilot CLI | `~/.config/github-copilot/sessions/` |
-| OpenAI Codex | `~/.codex/` |
+| Claude Code | `~/.claude/sessions/` (`~/.claude/history.jsonl` is also read for recent prompts) |
+| GitHub Copilot CLI | `~/.copilot/session-state/` |
+| OpenAI Codex | `~/.codex/sessions/` |
 
 ## Options
 
@@ -66,9 +66,11 @@ Pressing `Enter` with no checked sessions resumes the focused session in the cur
 | `--version` | Print version |
 | `--help` | Print help |
 
-## macOS & Gatekeeper
+## macOS
 
 Tagged releases now ship Developer ID-signed, notarized macOS binaries so npm installs pass Gatekeeper without manual re-signing.
+
+Checked-session launches on macOS open separate Terminal.app or iTerm windows only when you explicitly select sessions with `Space`. Pressing `Enter` without any checked sessions still resumes the highlighted session in the current terminal.
 
 If you still see a "blocked by macOS security" error on an older install, run:
 
