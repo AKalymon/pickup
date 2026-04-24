@@ -11,7 +11,3 @@ const bin = join(__dirname, 'bin', 'pickup')
 try {
   execFileSync('xattr', ['-dr', 'com.apple.quarantine', bin], { stdio: 'ignore' })
 } catch { /* attribute may not exist */ }
-
-try {
-  execFileSync('codesign', ['--force', '--sign', '-', bin], { stdio: 'ignore' })
-} catch { /* codesign unavailable or failed — not fatal */ }

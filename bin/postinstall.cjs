@@ -2,15 +2,13 @@
 'use strict'
 
 const { execSync, execFileSync } = require('child_process')
-const { join } = require('path')
 
-// --- macOS: strip quarantine + ad-hoc codesign the platform binary ---
+// --- macOS: strip quarantine if npm propagated it to the signed binary ---
 if (process.platform === 'darwin') {
   const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
   try {
     const bin = require.resolve(`@pickup-cli/darwin-${arch}/bin/pickup`)
     try { execFileSync('xattr', ['-dr', 'com.apple.quarantine', bin], { stdio: 'ignore' }) } catch {}
-    try { execFileSync('codesign', ['--force', '--sign', '-', bin], { stdio: 'ignore' }) } catch {}
   } catch {}
 }
 

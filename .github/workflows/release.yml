@@ -5,6 +5,14 @@ on:
     tags:
       - 'v*'
 
+# Required secrets for tagged macOS releases:
+# - NPM_TOKEN
+# - APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12 (base64-encoded .p12 export)
+# - APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD
+# - APPLE_TEAM_ID
+# - APPLE_NOTARY_KEY_ID
+# - APPLE_NOTARY_ISSUER_ID
+# - APPLE_NOTARY_PRIVATE_KEY (contents of AuthKey_<KEY_ID>.p8 from App Store Connect)
 jobs:
   build:
     strategy:
@@ -44,10 +52,121 @@ jobs:
             --target=${{ matrix.target }} \
             --outfile npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
 
-      - name: Sign binary (macOS only)
+      - name: Validate macOS signing configuration
+        if: runner.os == 'macOS'
+        env:
+          APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_PRIVATE_KEY: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret_name in \
+            APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12 \
+            APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD \
+            APPLE_TEAM_ID \
+            APPLE_NOTARY_KEY_ID \
+            APPLE_NOTARY_ISSUER_ID \
+            APPLE_NOTARY_PRIVATE_KEY; do
+            if [ -z "${!secret_name}" ]; then
+              missing+=("$secret_name")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing required GitHub secrets for macOS signing/notarization: ${missing[*]}" >&2
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        if: runner.os == 'macOS'
+        env:
+          APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12 }}
+          APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+          CERT_PATH: ${{ github.workspace }}/.release-secrets/developer-id-application.p12
+          KEYCHAIN_PASSWORD: pickup-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          secrets_dir="$GITHUB_WORKSPACE/.release-secrets"
+          cert_path="$secrets_dir/developer-id-application.p12"
+          keychain_path="$GITHUB_WORKSPACE/.release-signing.keychain-db"
+
+          mkdir -p "$secrets_dir"
+          python3 -c "import base64, os, pathlib; pathlib.Path(os.environ['CERT_PATH']).write_bytes(base64.b64decode(os.environ['APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12']))"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -lut 21600 "$keychain_path"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security import "$cert_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -T /usr/bin/xcrun
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security list-keychains -d user -s "$keychain_path" $(security list-keychains -d user | tr -d '"')
+          security default-keychain -d user -s "$keychain_path"
+
+          signing_identity=$(security find-identity -v -p codesigning "$keychain_path" | awk -F\" '/Developer ID Application/ { print $2; exit }')
+          if [ -z "$signing_identity" ]; then
+            echo "Developer ID Application identity not found in imported certificate." >&2
+            exit 1
+          fi
+
+          {
+            echo "APPLE_SIGNING_IDENTITY=$signing_identity"
+            echo "APPLE_KEYCHAIN_PATH=$keychain_path"
+            echo "APPLE_SECRETS_DIR=$secrets_dir"
+          } >> "$GITHUB_ENV"
+
+      - name: Sign macOS binary
         if: runner.os == 'macOS'
         run: |
-          codesign --force --sign - npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }} || true
+          set -euo pipefail
+          bin="npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}"
+          codesign --force --options runtime --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$bin"
+          codesign --verify --strict --verbose=2 "$bin"
+
+      - name: Notarize and staple macOS binary
+        if: runner.os == 'macOS'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_PRIVATE_KEY: ${{ secrets.APPLE_NOTARY_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          bin="npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}"
+          archive="$GITHUB_WORKSPACE/${{ matrix.pkg }}-notarization.zip"
+          notary_key_path="$APPLE_SECRETS_DIR/AuthKey_${APPLE_NOTARY_KEY_ID}.p8"
+
+          printf '%s' "$APPLE_NOTARY_PRIVATE_KEY" > "$notary_key_path"
+          ditto -c -k --keepParent --sequesterRsrc "$bin" "$archive"
+
+          xcrun notarytool submit "$archive" \
+            --key "$notary_key_path" \
+            --key-id "$APPLE_NOTARY_KEY_ID" \
+            --issuer "$APPLE_NOTARY_ISSUER_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+
+          xcrun stapler staple -v "$bin"
+          spctl --assess --type exec --verbose=4 "$bin"
+
+      - name: Clean up macOS signing credentials
+        if: runner.os == 'macOS' && always()
+        run: |
+          set -euo pipefail
+          rm -f "$GITHUB_WORKSPACE/${{ matrix.pkg }}-notarization.zip"
+          if [ -n "${APPLE_SECRETS_DIR:-}" ]; then
+            rm -rf "$APPLE_SECRETS_DIR"
+          fi
+          if [ -n "${APPLE_KEYCHAIN_PATH:-}" ] && [ -f "$APPLE_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$APPLE_KEYCHAIN_PATH" || true
+          fi
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4

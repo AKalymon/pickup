@@ -68,7 +68,9 @@ Selecting a single session resumes it in the current terminal window. Selecting 
 
 ## macOS & Gatekeeper
 
-If you see a "blocked by macOS security" error, run:
+Tagged releases now ship Developer ID-signed, notarized macOS binaries so npm installs pass Gatekeeper without manual re-signing.
+
+If you still see a "blocked by macOS security" error on an older install, run:
 
 ```bash
 xattr -dr com.apple.quarantine "$(npm root -g)/@pickup-cli/darwin-arm64/bin/pickup"
@@ -76,7 +78,7 @@ xattr -dr com.apple.quarantine "$(npm root -g)/@pickup-cli/darwin-arm64/bin/pick
 xattr -dr com.apple.quarantine "$(npm root -g)/@pickup-cli/darwin-x64/bin/pickup"
 ```
 
-This is a known limitation of unsigned binaries distributed via npm. A permanent fix requires Apple notarization, which is on the roadmap.
+Maintainers: the release workflow now requires `NPM_TOKEN` plus these GitHub Actions secrets for macOS signing/notarization: `APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12`, `APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_NOTARY_KEY_ID`, `APPLE_NOTARY_ISSUER_ID`, and `APPLE_NOTARY_PRIVATE_KEY`.
 
 ## License
 
