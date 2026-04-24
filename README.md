@@ -45,7 +45,7 @@ pickup --help
 | `Enter` | Resume focused session (or all selected) |
 | `q` / `Esc` | Quit |
 
-Selecting a single session resumes it in the current terminal window. Selecting multiple sessions opens each in a new terminal window (supports kitty, alacritty, wezterm, gnome-terminal, xterm).
+Pressing `Enter` with no checked sessions resumes the focused session in the current terminal. Checking one or more sessions with `Space` switches to the separate-terminal flow and opens each checked session in its own terminal session. Supported multi-launch terminals: Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm.
 
 ## Supported tools
 

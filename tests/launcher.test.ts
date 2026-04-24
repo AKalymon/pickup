@@ -46,10 +46,13 @@ function makeErrorDetachedSpawner(errCode: string): ProcessSpawner {
   }
 }
 
-function makeEmulator(name = 'xterm'): Emulator {
+function makeEmulator(name = 'xterm', onBuild?: (cmd: string[], cwd?: string) => void): Emulator {
   return {
     name,
-    buildTerminalCommand: (cmd) => [name, '-e', ...cmd],
+    buildTerminalCommand: (cmd, cwd) => {
+      onBuild?.(cmd, cwd)
+      return [name, '-e', ...cmd]
+    },
   }
 }
 
@@ -176,6 +179,19 @@ describe('launchInNewWindows', () => {
     )
     expect(failures).toBe(0)
   }, 1000)
+
+  test('passes claude cwd to emulator command builder', async () => {
+    const builds: Array<{ cmd: string[]; cwd?: string }> = []
+    await launchInNewWindows(
+      [makeSession('claude', 'a', '/claude/project')],
+      makeEmulator('Terminal.app', (cmd, cwd) => builds.push({ cmd, cwd })),
+      makeDetachedSpawner(),
+      () => {},
+    )
+    expect(builds).toEqual([
+      { cmd: ['claude', '--resume', 'a'], cwd: '/claude/project' },
+    ])
+  }, 1000)
 })
 
 describe('launchSessions', () => {
@@ -193,17 +209,35 @@ describe('launchSessions', () => {
     expect(exitCode).toBe(0)
   })
 
-  test('exits 1 when no emulator found for multiple sessions', async () => {
+  test('respects separate-terminal-sessions mode for one checked session', async () => {
+    const launched: string[] = []
     let exitCode: number | undefined
     const deps = {
-      spawner: makeDetachedSpawner(),
-      findEmulator: () => null,
+      spawner: makeDetachedSpawner((bin) => launched.push(bin)),
+      findEmulator: () => makeEmulator('Terminal.app'),
       exit: (code: number): never => { exitCode = code; throw new Error('exit') },
       logError: () => {},
     }
     try {
-      await launchSessions([makeSession('codex', 'a'), makeSession('codex', 'b')], deps)
+      await launchSessions([makeSession('codex', 'checked')], deps, 'separate-terminal-sessions')
+    } catch {}
+    expect(launched).toEqual(['Terminal.app'])
+    expect(exitCode).toBe(0)
+  })
+
+  test('exits 1 when no emulator found for multiple sessions', async () => {
+    let exitCode: number | undefined
+    const errors: string[] = []
+    const deps = {
+      spawner: makeDetachedSpawner(),
+      findEmulator: () => null,
+      exit: (code: number): never => { exitCode = code; throw new Error('exit') },
+      logError: (msg: string) => { errors.push(msg) },
+    }
+    try {
+      await launchSessions([makeSession('codex', 'a'), makeSession('codex', 'b')], deps, 'separate-terminal-sessions')
     } catch {}
     expect(exitCode).toBe(1)
+    expect(errors[0]).toMatch(/Terminal\.app, iTerm/)
   })
 })

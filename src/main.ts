@@ -65,14 +65,14 @@ function printJson(sessions: Session[]): void {
 }
 
 async function letUserPickAndLaunch(sessions: Session[]): Promise<void> {
-  const selected = await runPicker(sessions)
-  if (selected.length > 0) {
-    await launchSessions(selected, {
+  const selection = await runPicker(sessions)
+  if (selection && selection.sessions.length > 0) {
+    await launchSessions(selection.sessions, {
       spawner:      bunSpawner,
       findEmulator: () => findTerminalEmulator(processEnv, bunWhich),
       exit:         process.exit as (code: number) => never,
       logError:     console.error,
-    })
+    }, selection.mode)
   }
 }
 

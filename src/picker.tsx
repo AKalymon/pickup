@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { render, Box, Text, useInput, useApp, useStdout } from 'ink'
 import { type Session } from './parsers/types.ts'
 import { describeTimeAgo, abbreviateHomePath } from './format.ts'
+import { resolveLaunchSelection, type LaunchSelection } from './selection.ts'
 
 const TOOL_COLOR: Record<string, string> = {
   claude:  'yellow',
@@ -69,7 +70,7 @@ function SessionRow({ session, isFocused, isChecked, maxWidth }: SessionRowProps
 
 interface PickerProps {
   sessions: Session[]
-  onConfirm: (sessions: Session[]) => void
+  onConfirm: (selection: LaunchSelection) => void
   onExit: () => void
 }
 
@@ -119,15 +120,10 @@ function Picker({ sessions, onConfirm, onExit }: PickerProps) {
     }
 
     if (key.return) {
-      // If nothing checked, resume the focused session
-      // If sessions are checked, resume all checked ones
-      if (checked.size === 0) {
-        const session = sessions[focusIndex]
-        if (session) { exit(); onConfirm([session]) }
-      } else {
-        const toResume = sessions.filter(s => checked.has(s.id))
+      const selection = resolveLaunchSelection(sessions, focusIndex, checked)
+      if (selection) {
         exit()
-        onConfirm(toResume)
+        onConfirm(selection)
       }
     }
   })
@@ -138,7 +134,7 @@ function Picker({ sessions, onConfirm, onExit }: PickerProps) {
   const checkedCount = checked.size
 
   const footerHint = checkedCount > 0
-    ? `${checkedCount} selected — enter to resume all in new windows`
+    ? `${checkedCount} selected — enter to resume in separate terminal sessions`
     : 'enter resume  space select  ↑↓/jk navigate  q quit'
 
   return (
@@ -180,25 +176,25 @@ function EmptyState() {
   )
 }
 
-export async function runPicker(sessions: Session[]): Promise<Session[]> {
+export async function runPicker(sessions: Session[]): Promise<LaunchSelection | null> {
   if (sessions.length === 0) {
     const { waitUntilExit, unmount } = render(<EmptyState />)
     await new Promise(r => setTimeout(r, 2000))
     unmount()
     await waitUntilExit().catch(() => {})
-    return []
+    return null
   }
 
-  let selected: Session[] = []
+  let selection: LaunchSelection | null = null
 
   const { waitUntilExit } = render(
     <Picker
       sessions={sessions}
-      onConfirm={(s) => { selected = s }}
+      onConfirm={(nextSelection) => { selection = nextSelection }}
       onExit={() => {}}
     />,
   )
 
   await waitUntilExit().catch(() => {})
-  return selected
+  return selection
 }

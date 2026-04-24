@@ -2,6 +2,8 @@ import { type Session } from './parsers/types.ts'
 import type { ProcessSpawner } from './ports.ts'
 import type { Emulator } from './terminal.ts'
 
+export type LaunchMode = 'current-terminal' | 'separate-terminal-sessions'
+
 export interface LaunchDeps {
   spawner: ProcessSpawner
   findEmulator(): Emulator | null
@@ -11,9 +13,13 @@ export interface LaunchDeps {
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
-/** Single session → current terminal. Multiple sessions → new windows each. */
-export async function launchSessions(sessions: Session[], deps: LaunchDeps): Promise<void> {
-  if (sessions.length === 1) {
+/** Focused session → current terminal. Checked sessions → separate terminal sessions. */
+export async function launchSessions(
+  sessions: Session[],
+  deps: LaunchDeps,
+  mode: LaunchMode = sessions.length > 1 ? 'separate-terminal-sessions' : 'current-terminal',
+): Promise<void> {
+  if (mode === 'current-terminal') {
     launchInCurrentTerminal(sessions[0]!, deps.spawner, deps.exit, deps.logError)
   } else {
     await launchInNewTerminalWindows(sessions, deps)
@@ -43,7 +49,7 @@ export function launchInCurrentTerminal(
   return exit(result.status ?? 0)
 }
 
-/** Open each session in its own new terminal window. */
+/** Open each session in its own separate terminal session. */
 export async function launchInNewWindows(
   sessions: Session[],
   emulator: Emulator,
@@ -53,9 +59,10 @@ export async function launchInNewWindows(
   let failures = 0
 
   for (const session of sessions) {
-    const argv = emulator.buildTerminalCommand(buildResumeCommand(session))
+    const cwd = determineWorkingDirectory(session)
+    const argv = emulator.buildTerminalCommand(buildResumeCommand(session), cwd)
     const [bin, ...args] = argv as [string, ...string[]]
-    const child = spawner.spawnDetached(bin, args, { cwd: determineWorkingDirectory(session) })
+    const child = spawner.spawnDetached(bin, args, { cwd })
     child.onError((err: NodeJS.ErrnoException) => {
       logError(describeSpawnError(bin, err, session))
       failures++
@@ -74,7 +81,7 @@ async function launchInNewTerminalWindows(sessions: Session[], deps: LaunchDeps)
   if (!emulator) {
     deps.logError(
       'pickup: could not detect a supported terminal emulator.\n' +
-      'Supported: kitty, alacritty, wezterm, gnome-terminal, xterm'
+      'Supported for separate terminal sessions: Terminal.app, iTerm, kitty, alacritty, wezterm, gnome-terminal, xterm'
     )
     deps.exit(1)
   }

@@ -34,6 +34,16 @@ describe('findTerminalEmulator', () => {
     expect(emulator!.name).toBe('wezterm')
   })
 
+  test('detects iTerm via TERM_PROGRAM', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'iTerm.app' }), nothingOn)
+    expect(emulator!.name).toBe('iTerm')
+  })
+
+  test('detects Terminal.app via TERM_PROGRAM', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'Apple_Terminal' }), nothingOn)
+    expect(emulator!.name).toBe('Terminal.app')
+  })
+
   test('falls back to PATH detection when env vars absent', () => {
     const emulator = findTerminalEmulator(emptyEnv, makeWhich(['xterm']))
     expect(emulator!.name).toBe('xterm')
@@ -66,6 +76,31 @@ describe('findTerminalEmulator', () => {
     const emulator = findTerminalEmulator(makeEnv({ WEZTERM_PANE: '0' }), nothingOn)
     const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'])
     expect(cmd).toEqual(['wezterm', 'start', '--', 'claude', '--resume', 'abc'])
+  })
+
+  test('buildTerminalCommand wraps the command for iTerm', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'iTerm.app' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'], '/Users/test/My Project')
+    expect(cmd).toEqual([
+      'osascript',
+      '-e', 'tell application id "com.googlecode.iterm2"',
+      '-e', 'activate',
+      '-e', 'create window with default profile',
+      '-e', `tell current session of current window to write text "cd '/Users/test/My Project' && exec 'claude' '--resume' 'abc'"`,
+      '-e', 'end tell',
+    ])
+  })
+
+  test('buildTerminalCommand wraps the command for Terminal.app', () => {
+    const emulator = findTerminalEmulator(makeEnv({ TERM_PROGRAM: 'Apple_Terminal' }), nothingOn)
+    const cmd = emulator!.buildTerminalCommand(['claude', '--resume', 'abc'], "/Users/test/it's me")
+    expect(cmd).toEqual([
+      'osascript',
+      '-e', 'tell application id "com.apple.Terminal"',
+      '-e', 'activate',
+      '-e', `do script "cd '/Users/test/it'\\\\''s me' && exec 'claude' '--resume' 'abc'"`,
+      '-e', 'end tell',
+    ])
   })
 
   test('buildTerminalCommand wraps the command for gnome-terminal', () => {
