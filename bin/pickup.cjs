@@ -42,7 +42,7 @@ if (pkgName) {
 }
 
 // Bun fallback (local dev / unsupported platform)
-const cli = join(__dirname, '..', 'src', 'cli.ts')
+const cli = join(__dirname, '..', 'src', 'main.ts')
 const result = spawnSync('bun', ['run', cli, ...process.argv.slice(2)], { stdio: 'inherit' })
 
 if (result.error?.code === 'ENOENT') {

@@ -39,7 +39,7 @@ jobs:
 
       - name: Compile binary
         run: |
-          bun build ./src/cli.ts \
+          bun build ./src/main.ts \
             --compile \
             --target=${{ matrix.target }} \
             --outfile npm/@pickup-cli/${{ matrix.pkg }}/bin/${{ matrix.binary }}
